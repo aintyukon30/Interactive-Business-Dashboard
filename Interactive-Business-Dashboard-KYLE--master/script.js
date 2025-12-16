@@ -1,14 +1,20 @@
+// Get canvas contexts for the two charts
 const revenueCtx = document.getElementById("revenueChart").getContext("2d");
 const productCtx = document.getElementById("productChart").getContext("2d");
+
+// Get DOM elements for KPIs, activity feed, customer table, and metadata labels
 const kpiGrid = document.getElementById("kpiGrid");
 const activityFeed = document.getElementById("activityFeed");
 const customerTableBody = document.querySelector("#customerTable tbody");
 const revenueMeta = document.getElementById("revenueMeta");
 const mixMeta = document.getElementById("mixMeta");
 const activityMeta = document.getElementById("activityMeta");
+
+// Controls for range filtering and refreshing
 const rangeFilter = document.getElementById("rangeFilter");
 const refreshButton = document.getElementById("refreshButton");
 
+// Static list of customer data
 const customers = [
     { name: "Acme Holdings", value: 420000, health: "good" },
     { name: "Northwind Group", value: 350000, health: "warning" },
@@ -17,6 +23,7 @@ const customers = [
     { name: "Atlas Mobility", value: 167000, health: "good" }
 ];
 
+// Random activity messages shown in the activity feed
 const activities = [
     { label: "New order", value: () => `+₱${randomInt(8, 75)}k` },
     { label: "Renewal", value: () => `+₱${randomInt(20, 60)}k` },
@@ -25,41 +32,48 @@ const activities = [
     { label: "Refund issued", value: () => `-₱${randomInt(4, 18)}k` }
 ];
 
+// Dashboard state container
 const state = {
-    range: Number(rangeFilter.value),
-    revenueSeries: [],
-    productMix: [],
-    kpis: []
+    range: Number(rangeFilter.value), // Selected number of days
+    revenueSeries: [],               // Line chart data
+    productMix: [],                  // Bar chart data
+    kpis: []                         // KPI widget data
 };
 
+// Generates a random integer (used for fake data)
 function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// Formats numbers as Philippine Peso currency
 function formatCurrency(value) {
-    return new Intl.NumberFormat("en-PH", { 
-        style: "currency", 
-        currency: "PHP", 
-        maximumFractionDigits: 0 
+    return new Intl.NumberFormat("en-PH", {
+        style: "currency",
+        currency: "PHP",
+        maximumFractionDigits: 0
     }).format(value);
 }
 
-
+// Formats values as percentages
 function formatPercent(value) {
     return `${(value * 100).toFixed(1)}%`;
 }
 
+// Creates random revenue values for the line chart
 function generateRevenueSeries(days) {
     const series = [];
     let value = randomInt(180, 260);
-    for (let i = days - 1; i >= 0; i -= 1) {
-        value += randomInt(-12, 15);
+
+    for (let i = days - 1; i >= 0; i--) {
+        value += randomInt(-12, 15); // Random fluctuation
         if (value < 120) value = 120;
         series.unshift({ day: days - i, value });
     }
+
     return series;
 }
 
+// Creates random product mix percentages for the bar chart
 function generateProductMix() {
     const base = [
         { label: "Subscriptions", value: randomInt(38, 48) },
@@ -67,10 +81,12 @@ function generateProductMix() {
         { label: "Advisory", value: randomInt(14, 22) },
         { label: "Support", value: randomInt(8, 16) }
     ];
-    const total = base.reduce((sum, entry) => sum + entry.value, 0);
+
+    const total = base.reduce((sum, e) => sum + e.value, 0);
     return base.map(entry => ({ ...entry, ratio: entry.value / total }));
 }
 
+// Builds KPI values using revenue and generated metrics
 function buildKpis(series) {
     const latest = series[series.length - 1].value;
     const prior = series[Math.max(series.length - 8, 0)].value;
@@ -89,10 +105,12 @@ function buildKpis(series) {
     ];
 }
 
+// Renders KPI cards on the UI
 function renderKpis(kpis) {
     kpiGrid.innerHTML = kpis.map(kpi => {
         const trendClass = kpi.trend >= 0 ? "up" : "down";
         const trendSymbol = kpi.trend >= 0 ? "▲" : "▼";
+
         return `
             <article class="kpi-card">
                 <span class="kpi-trend ${trendClass}">${trendSymbol} ${Math.abs(kpi.trend * 100).toFixed(1)}%</span>
@@ -104,42 +122,46 @@ function renderKpis(kpis) {
     }).join("");
 }
 
+// Draws the revenue line chart
 function drawLineChart(ctx, series) {
     const width = ctx.canvas.width;
     const height = ctx.canvas.height;
+
     ctx.clearRect(0, 0, width, height);
 
-    const values = series.map(point => point.value);
+    const values = series.map(p => p.value);
     const min = Math.min(...values) - 10;
     const max = Math.max(...values) + 10;
     const range = max - min || 1;
 
+    // Background grid lines
     ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 6]);
-    for (let i = 1; i < 4; i += 1) {
+
+    for (let i = 1; i < 4; i++) {
         const y = (height / 4) * i;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);
         ctx.stroke();
     }
+
     ctx.setLineDash([]);
 
+    // Draw line path
     ctx.beginPath();
     series.forEach((point, index) => {
         const x = (index / (series.length - 1)) * width;
         const y = height - ((point.value - min) / range) * height;
-        if (index === 0) {
-            ctx.moveTo(x, y);
-        } else {
-            ctx.lineTo(x, y);
-        }
+        index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
+
     ctx.strokeStyle = "#38bdf8";
     ctx.lineWidth = 3;
     ctx.stroke();
 
+    // Fill area under curve
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, "rgba(56, 189, 248, 0.35)");
     gradient.addColorStop(1, "rgba(15, 23, 42, 0)");
@@ -151,6 +173,7 @@ function drawLineChart(ctx, series) {
     ctx.fill();
 }
 
+// Helper function to draw rounded bars
 function drawRoundedRectPath(ctx, x, y, width, height, radius) {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -165,12 +188,15 @@ function drawRoundedRectPath(ctx, x, y, width, height, radius) {
     ctx.closePath();
 }
 
+// Draws the product mix bar chart
 function drawBarChart(ctx, mix) {
     const width = ctx.canvas.width;
     const height = ctx.canvas.height;
+
     ctx.clearRect(0, 0, width, height);
 
     const barWidth = width / mix.length - 20;
+
     mix.forEach((product, index) => {
         const x = index * (barWidth + 20) + 10;
         const barHeight = product.ratio * (height - 40);
@@ -190,10 +216,15 @@ function drawBarChart(ctx, mix) {
     });
 }
 
+// Shows random activity log entries
 function renderActivity() {
     const now = new Date();
     activityMeta.textContent = `Updated ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-    const entries = Array.from({ length: 5 }, () => activities[randomInt(0, activities.length - 1)]);
+
+    const entries = Array.from({ length: 5 }, () =>
+        activities[randomInt(0, activities.length - 1)]
+    );
+
     activityFeed.innerHTML = entries.map(entry => `
         <li class="activity__item">
             <span class="activity__label">${entry.label}</span>
@@ -202,6 +233,7 @@ function renderActivity() {
     `).join("");
 }
 
+// Displays customer table
 function renderCustomers() {
     customerTableBody.innerHTML = customers.map(customer => `
         <tr>
@@ -212,6 +244,7 @@ function renderCustomers() {
     `).join("");
 }
 
+// Main function to update everything on dashboard
 function updateDashboard() {
     state.range = Number(rangeFilter.value);
     state.revenueSeries = generateRevenueSeries(state.range);
@@ -224,13 +257,15 @@ function updateDashboard() {
     renderActivity();
     renderCustomers();
 
-    const total = state.revenueSeries.reduce((sum, point) => sum + point.value, 0);
+    const total = state.revenueSeries.reduce((sum, p) => sum + p.value, 0);
     revenueMeta.textContent = `${formatCurrency(total * 1000)} ${state.range}-day total`;
     mixMeta.textContent = "Share of revenue by service line";
 }
 
+// Event listeners for changing range + manual refresh
 rangeFilter.addEventListener("change", updateDashboard);
 refreshButton.addEventListener("click", updateDashboard);
 
+// Auto-update dashboard every 8 seconds
 updateDashboard();
 setInterval(updateDashboard, 8000);
